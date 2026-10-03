@@ -69,5 +69,5 @@ Gameplay behaviour and every config option are kept from version 2.0. Changed:
 - **Translations.** The key-binding category key was renamed to the 26.x format
   (`key.category.hitindication.hitindication`); English config screen titles and tooltips were
   added, taken from the original config comments.
-- **Mod name.** Shown as "Hit Indication (Unofficial Port)" so it is not mistaken for an official
-  release.
+- **Mod name.** Shown as "Hit Indication (Port)". The mod descriptions and project pages state that
+  it is an unofficial port, not affiliated with or endorsed by the original authors.

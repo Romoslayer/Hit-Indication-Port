@@ -6,7 +6,7 @@ issueTrackerURL = "https://github.com/Romoslayer/Hit-Indication-Port/issues"
 [[mods]]
     modId = "hitindication"
     version = "${version}"
-    displayName = "Hit Indication (Unofficial Port)"
+    displayName = "Hit Indication (Port)"
     displayURL = "https://github.com/Romoslayer/Hit-Indication-Port"
     iconFile = "assets/hitindication/icon.png"
     authors = "Hamester and Axovoxel"

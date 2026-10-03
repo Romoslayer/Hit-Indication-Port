@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"id": "hitindication",
 	"version": "${version}",
-	"name": "Hit Indication (Unofficial Port)",
+	"name": "Hit Indication (Port)",
 	"description": "Adds hit indicators that show where damage is taken from. Unofficial port of Hamester's Hit Indication (https://github.com/TheHamester/HitIndicator) to Minecraft ${minecraft}; modified from the original and not affiliated with or endorsed by its authors. Licensed CC BY-SA 4.0.",
 	"authors": [
 		"Hamester",
