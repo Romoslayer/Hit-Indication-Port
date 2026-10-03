@@ -1,0 +1,28 @@
+# gradle
+.gradle/
+build/
+out/
+classes/
+
+# idea
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# eclipse / vscode
+*.launch
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+
+# dev runs
+run/
+
+# java
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr

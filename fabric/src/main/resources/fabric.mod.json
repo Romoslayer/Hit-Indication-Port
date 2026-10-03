@@ -1,0 +1,51 @@
+{
+	"schemaVersion": 1,
+	"id": "hitindication",
+	"version": "${version}",
+	"name": "Hit Indication (Unofficial Port)",
+	"description": "Adds hit indicators that show where damage is taken from. Unofficial port of Hamester's Hit Indication (https://github.com/TheHamester/HitIndicator) to Minecraft ${minecraft}; modified from the original and not affiliated with or endorsed by its authors. Licensed CC BY-SA 4.0.",
+	"authors": [
+		"Hamester",
+		"Axovoxel"
+	],
+	"contributors": [
+		"Romoslayer (Fabric/NeoForge port to Minecraft 26.2 and 26.3)",
+		"HaHaWTH (Simplified and Traditional Chinese localization)",
+		"Emik (Swedish and toki pona localization)",
+		"Enitoni (Norwegian localization)",
+		"Lily (German localization)",
+		"Axovoxel (Pirate Speak localization)"
+	],
+	"contact": {
+		"homepage": "https://github.com/Romoslayer/Hit-Indication-Port",
+		"sources": "https://github.com/Romoslayer/Hit-Indication-Port",
+		"issues": "https://github.com/Romoslayer/Hit-Indication-Port/issues"
+	},
+	"license": "CC-BY-SA-4.0",
+	"icon": "assets/hitindication/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.rosymaple.hitindication.fabric.HitIndicationFabric"
+		],
+		"client": [
+			"com.rosymaple.hitindication.fabric.HitIndicationFabricClient"
+		],
+		"modmenu": [
+			"com.rosymaple.hitindication.fabric.compat.ModMenuIntegration"
+		]
+	},
+	"mixins": [
+		"hitindication.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~${minecraft}",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*",
+		"cloth-config": "*"
+	}
+}

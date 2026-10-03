@@ -1,0 +1,61 @@
+// Root project: holds only the settings both loader modules share. The mod itself is built by
+// :fabric and :neoforge, each of which compiles the shared sources in common/ against its own
+// Minecraft dependency.
+
+subprojects {
+	apply plugin: 'java'
+
+	// Which Minecraft version this build targets. Pass -Pmc=26.2 to build for 26.2 instead.
+	ext.minecraftVersion = project.findProperty('mc') ?: '26.3'
+	ext.mcKey = ext.minecraftVersion.replace('.', '_')
+	ext.modVersion = "${project.mod_version}+${ext.minecraftVersion}"
+
+	// "26.2" -> "[26.2,26.3)", so a build never claims to support the next Minecraft version.
+	def parts = ext.minecraftVersion.tokenize('.')
+	ext.minecraftRange = "[${ext.minecraftVersion},${parts[0]}.${(parts[1] as int) + 1})"
+
+	version = ext.modVersion
+	group = project.maven_group
+
+	// Both loaders compile the same shared sources.
+	sourceSets.main.java.srcDir rootProject.file('common/src/main/java')
+	sourceSets.main.resources.srcDir rootProject.file('common/src/main/resources')
+
+	tasks.withType(JavaCompile).configureEach {
+		it.options.release = 25
+		it.options.encoding = 'UTF-8'
+	}
+
+	java {
+		withSourcesJar()
+
+		sourceCompatibility = JavaVersion.VERSION_25
+		targetCompatibility = JavaVersion.VERSION_25
+	}
+
+	// CC BY-SA 4.0 section 3(a)(1)(C) requires the license (or a link to it) to travel with every
+	// copy, and 3(a)(1)(A) requires the attribution notices to be retained. Both go into each jar.
+	tasks.named('jar') {
+		from(rootProject.file('LICENSE')) {
+			rename { "LICENSE_${project.mod_id}" }
+		}
+		from(rootProject.file('NOTICE.md')) {
+			rename { "NOTICE_${project.mod_id}.md" }
+		}
+	}
+	tasks.named('sourcesJar') {
+		from(rootProject.file('LICENSE')) {
+			rename { "LICENSE_${project.mod_id}" }
+		}
+		from(rootProject.file('NOTICE.md')) {
+			rename { "NOTICE_${project.mod_id}.md" }
+		}
+	}
+}
+
+// Convenience: build every loader for the selected Minecraft version.
+tasks.register('buildAll') {
+	group = 'build'
+	description = 'Builds the Fabric and NeoForge jars for the selected Minecraft version.'
+	dependsOn ':fabric:build', ':neoforge:build'
+}

@@ -1,0 +1,43 @@
+plugins {
+	id 'net.neoforged.moddev' version "${moddev_version}"
+}
+
+base {
+	archivesName = "${archives_base_name}-neoforge"
+}
+
+neoForge {
+	version = project.property("mc_${mcKey}_neoforge")
+
+	runs {
+		configureEach {
+			gameDirectory = file('run')
+		}
+		client {
+			client()
+		}
+		server {
+			server()
+			programArguments = ['--nogui']
+		}
+	}
+
+	mods {
+		hitindication {
+			sourceSet sourceSets.main
+		}
+	}
+}
+
+processResources {
+	def version = project.version
+	def minecraft = minecraftVersion
+	def mcRange = minecraftRange
+	inputs.property 'version', version
+	inputs.property 'minecraft', minecraft
+	inputs.property 'minecraftRange', mcRange
+
+	filesMatching('META-INF/neoforge.mods.toml') {
+		expand 'version': version, 'minecraft': minecraft, 'minecraftRange': mcRange
+	}
+}

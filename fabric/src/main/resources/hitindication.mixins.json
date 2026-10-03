@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "com.rosymaple.hitindication.fabric.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"AbstractThrownPotionMixin",
+		"ServerPlayerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
