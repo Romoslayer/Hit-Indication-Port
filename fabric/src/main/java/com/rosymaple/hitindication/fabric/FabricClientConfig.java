@@ -2,7 +2,6 @@ package com.rosymaple.hitindication.fabric;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonParseException;
 import com.rosymaple.hitindication.config.HitIndicatorClientConfigs;
 import com.rosymaple.hitindication.config.HitIndicatorClientConfigs.Values;
 import net.fabricmc.loader.api.FabricLoader;
@@ -11,11 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 import static com.rosymaple.hitindication.config.HitIndicatorClientConfigs.*;
 
@@ -30,7 +30,7 @@ public final class FabricClientConfig implements Values {
     private final Path path;
     private Data data = new Data();
 
-    private FabricClientConfig(Path path) {
+    FabricClientConfig(Path path) {
         this.path = path;
     }
 
@@ -76,14 +76,34 @@ public final class FabricClientConfig implements Values {
         return data;
     }
 
-    private void read() {
+    void read() {
         if (Files.exists(path)) {
-            try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-                Data loaded = GSON.fromJson(reader, Data.class);
+            String json;
+            try {
+                json = Files.readString(path, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                // The file may be fine, just unreadable right now: use defaults, leave it alone.
+                LOGGER.error("Could not read {}, using defaults for this session", path, e);
+                data.clamp();
+                return;
+            }
+
+            try {
+                Data loaded = GSON.fromJson(json, Data.class);
                 if (loaded != null)
                     data = loaded;
-            } catch (IOException | JsonParseException e) {
-                LOGGER.error("Could not read {}, using defaults", path, e);
+            } catch (RuntimeException e) {
+                // Malformed JSON, or a value of the wrong type. Keep the user's file for recovery
+                // before it gets replaced with defaults.
+                Path backup = backupPath();
+                try {
+                    Files.copy(path, backup);
+                    LOGGER.error("Could not parse {}, using defaults. The old file was kept as {}", path, backup, e);
+                } catch (IOException backupError) {
+                    LOGGER.error("Could not parse {}, and could not back it up to {}; leaving it unchanged and using defaults for this session", path, backup, e);
+                    data.clamp();
+                    return;
+                }
             }
         }
         data.clamp();
@@ -91,15 +111,32 @@ public final class FabricClientConfig implements Values {
         save();
     }
 
+    private Path backupPath() {
+        String name = path.getFileName() + ".broken-" + System.currentTimeMillis();
+        return path.resolveSibling(name);
+    }
+
+    /** Writes the file through a temporary sibling, so an interrupted save never leaves half a file. */
     public void save() {
         data.clamp();
+        Path temp = path.resolveSibling(path.getFileName() + ".tmp");
         try {
             Files.createDirectories(path.getParent());
-            try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+            try (Writer writer = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {
                 GSON.toJson(data, writer);
             }
+            try {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
-            LOGGER.error("Could not save {}", path, e);
+            LOGGER.error("Could not save {}; the previous file is unchanged", path, e);
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
+                // Nothing more to do; a stale .tmp is overwritten by the next save.
+            }
         }
     }
 

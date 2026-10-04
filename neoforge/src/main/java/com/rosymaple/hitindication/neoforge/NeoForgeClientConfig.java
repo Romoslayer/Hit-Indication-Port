@@ -1,12 +1,18 @@
 package com.rosymaple.hitindication.neoforge;
 
+import com.electronwill.nightconfig.core.CommentedConfig;
+import com.electronwill.nightconfig.toml.TomlParser;
+import com.mojang.logging.LogUtils;
 import com.rosymaple.hitindication.config.HitIndicatorClientConfigs.Values;
 import net.minecraft.client.Minecraft;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.ModConfigSpec;
+import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static com.rosymaple.hitindication.config.HitIndicatorClientConfigs.*;
 
@@ -15,6 +21,7 @@ import static com.rosymaple.hitindication.config.HitIndicatorClientConfigs.*;
  * comments, defaults and ranges, so an existing {@code hitindication-client.toml} still loads.
  */
 public final class NeoForgeClientConfig implements Values {
+    private static final Logger LOGGER = LogUtils.getLogger();
     public static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
     public static final ModConfigSpec SPEC;
 
@@ -107,57 +114,68 @@ public final class NeoForgeClientConfig implements Values {
     }
 
     // The three options the toggle keys change. Saving writes the file, and FML's file watcher then
-    // reloads it on another thread, holding a lock our set() cannot share. A reload that read the file
+    // reloads it on another thread, holding a lock our saves cannot share. A reload that read the file
     // just before one of our saves swaps the older values back in, which could undo a quick second key
-    // press. So the mod reads these copies instead. They follow the config on load, on saves made on
-    // the game thread (the config screen) and on edits to the file; a watcher reload that matches one
-    // of our own recent saves is only an echo or a stale read of the file, and is not applied.
-    private static final long OWN_SAVE_ECHO_MILLIS = 5000;
+    // press. So the mod reads these copies instead, and only ever changes them on the game thread:
+    // on the key press itself, on a save from the config screen, and when the file watcher reports
+    // a change. For the last, the game thread reads the file again: our own saves are made on that
+    // thread too, so by then the file holds either our latest save or a newer edit from outside the
+    // game, never a stale state, and can simply be applied.
     private volatile boolean enableHitIndication = DEFAULT_ENABLE_HIT_INDICATION;
     private volatile boolean showBlueIndicators = DEFAULT_SHOW_BLUE_INDICATORS;
     private volatile boolean edgeOfScreenMode = DEFAULT_EDGE_OF_SCREEN_MODE;
-    private final Deque<long[]> recentOwnSaves = new ArrayDeque<>(); // {time, toggle bits}
-    private boolean savingOwnChange;
+    private volatile @Nullable Path configPath;
+    private boolean savingOwnChange; // game thread only
 
     /** Mod-bus listener for ModConfigEvent.Loading and ModConfigEvent.Reloading. */
     public void onConfigEvent(ModConfigEvent event) {
-        if (event.getConfig().getSpec() != SPEC || savingOwnChange)
+        if (event.getConfig().getSpec() != SPEC)
+            return;
+        configPath = event.getConfig().getFullPath();
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (event instanceof ModConfigEvent.Reloading && minecraft != null && !minecraft.isSameThread()) {
+            // The file watcher. What it read may already be out of date: decide on the game thread.
+            minecraft.execute(this::reloadTogglesFromFile);
+            return;
+        }
+        if (savingOwnChange)
             return;
 
-        boolean enable = EnableHitIndication.get();
-        boolean showBlue = ShowBlueIndicators.get();
-        boolean edge = EdgeOfScreenMode.get();
-        if (event instanceof ModConfigEvent.Reloading && !isGameThread() && isRecentOwnSave(bits(enable, showBlue, edge))) {
-            // The file already holds our latest values; put them back in memory as well, so the config
-            // screen shows them.
-            EnableHitIndication.set(enableHitIndication);
-            ShowBlueIndicators.set(showBlueIndicators);
-            EdgeOfScreenMode.set(edgeOfScreenMode);
+        // Initial load, or a save made on the game thread by the config screen.
+        enableHitIndication = EnableHitIndication.get();
+        showBlueIndicators = ShowBlueIndicators.get();
+        edgeOfScreenMode = EdgeOfScreenMode.get();
+    }
+
+    /** Game thread: applies the toggle values the config file holds right now. */
+    private void reloadTogglesFromFile() {
+        Path path = configPath;
+        if (path == null)
+            return;
+
+        CommentedConfig file;
+        try {
+            file = new TomlParser().parse(Files.readString(path));
+        } catch (IOException | RuntimeException e) {
+            // Half-written by an editor, or briefly missing. The watcher reports the next change.
+            LOGGER.debug("Could not re-read {} after a change", path, e);
             return;
         }
 
-        enableHitIndication = enable;
-        showBlueIndicators = showBlue;
-        edgeOfScreenMode = edge;
+        enableHitIndication = readToggle(file, EnableHitIndication, enableHitIndication);
+        showBlueIndicators = readToggle(file, ShowBlueIndicators, showBlueIndicators);
+        edgeOfScreenMode = readToggle(file, EdgeOfScreenMode, edgeOfScreenMode);
+        // The watcher may have loaded older values into the spec; show the current ones on the
+        // config screen too. The file already holds them, so nothing is written.
+        EnableHitIndication.set(enableHitIndication);
+        ShowBlueIndicators.set(showBlueIndicators);
+        EdgeOfScreenMode.set(edgeOfScreenMode);
     }
 
-    private static long bits(boolean enable, boolean showBlue, boolean edge) {
-        return (enable ? 1 : 0) | (showBlue ? 2 : 0) | (edge ? 4 : 0);
-    }
-
-    private synchronized void rememberOwnSave() {
-        recentOwnSaves.addLast(new long[] {System.currentTimeMillis(), bits(enableHitIndication, showBlueIndicators, edgeOfScreenMode)});
-    }
-
-    private synchronized boolean isRecentOwnSave(long toggleBits) {
-        long now = System.currentTimeMillis();
-        recentOwnSaves.removeIf(save -> now - save[0] > OWN_SAVE_ECHO_MILLIS);
-        return recentOwnSaves.stream().anyMatch(save -> save[1] == toggleBits);
-    }
-
-    private static boolean isGameThread() {
-        Minecraft minecraft = Minecraft.getInstance();
-        return minecraft != null && minecraft.isSameThread();
+    private static boolean readToggle(CommentedConfig file, ModConfigSpec.ConfigValue<Boolean> value, boolean fallback) {
+        Object fileValue = file.get(value.getPath());
+        return fileValue instanceof Boolean bool ? bool : fallback;
     }
 
     private void saveToggles() {
@@ -166,7 +184,6 @@ public final class NeoForgeClientConfig implements Values {
             EnableHitIndication.set(enableHitIndication);
             ShowBlueIndicators.set(showBlueIndicators);
             EdgeOfScreenMode.set(edgeOfScreenMode);
-            rememberOwnSave();
             SPEC.save();
         } finally {
             savingOwnChange = false;

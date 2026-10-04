@@ -8,7 +8,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Fabric's stand-in for the projectile impact event the original listened to for thrown potions. */
+/**
+ * Fabric's stand-in for NeoForge's projectile impact event: marks the potion as shattering, so the
+ * effects its splash applies can be told apart from other effects.
+ */
 @Mixin(AbstractThrownPotion.class)
 public abstract class AbstractThrownPotionMixin {
     @Inject(method = "onHit(Lnet/minecraft/world/phys/HitResult;)V", at = @At("HEAD"))

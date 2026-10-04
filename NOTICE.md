@@ -56,16 +56,33 @@ Gameplay behaviour and every config option are kept from version 2.0. Changed:
   `canBlockDamageSource` check, since 26.x reworked shields into the `BlocksAttacks` component;
   likewise "shield about to break" now uses the attacker's `disableBlockingForSeconds` weapon
   property.
-- **Critical hits and thrown potions on Fabric.** Fabric has no events for these, so two small
-  mixins (`ServerPlayer#crit`, `AbstractThrownPotion#onHit`) stand in for Forge's
-  `CriticalHitEvent` and `ProjectileImpactEvent`. NeoForge still uses those events.
-- **Instant Damage prediction.** The copy of the vanilla potion damage calculation no longer awards
-  "damage resisted" statistics, since it only predicts damage and would otherwise count it twice.
+- **Critical hits, thrown potions, effects and fatal hits on Fabric.** Fabric has no events for
+  some of these, so small mixins (`ServerPlayer#crit`, `AbstractThrownPotion#onHit`,
+  `LivingEntity#addEffect` and `LivingEntity#hurtServer`) stand in for NeoForge's
+  `CriticalHitEvent`, `ProjectileImpactEvent` and `MobEffectEvent.Added`, and report hits that
+  Fabric's `AFTER_DAMAGE` event skips because they leave the entity dying.
+- **Potion indicators.** The original predicted, at the moment a potion shattered, which players
+  it would hit and how hard (copying the vanilla Instant Damage calculation). The port instead
+  reports what the game actually did: the effects it applied and the health it took, gathered
+  into one indicator per potion per player each tick. Players the splash did not reach get no
+  indicator, lingering potions indicate when their cloud affects someone rather than at impact,
+  and the damage percentage is the real health lost. Poison and Wither still count as damage, as
+  in the original.
+- **Heavy damage scaling.** The size multiplier for "Heavy damage makes indicator larger" is
+  `1 + damage% / 125` from 30% of max health (at most 3x), so heavy hits grow and the
+  shield-disabling blow draws at twice the size, as the option describes. The original's formula
+  shrank them.
+- **Indicator display.** Hit direction is computed in double precision (correct far from the
+  origin); Edge of Screen indicators are kept fully on screen at any angle; lowering the indicator
+  cap applies immediately; turning a category off hides what is already on screen; a crit marker
+  no longer replaces a kill marker; malformed indicator packets are ignored.
 - **Configuration.** NeoForge keeps `hitindication-client.toml` with the original section and keys,
   and gains NeoForge's built-in config screen. The three toggle keys no longer read their setting
   straight back from the config after saving: a background reload of the file could occasionally
-  undo a quick second key press, so the NeoForge build now keeps its own copy of those three values. Fabric stores the same options in
-  `hitindication-client.json`, with an optional Mod Menu + Cloth Config screen.
+  undo a quick second key press, so the NeoForge build keeps its own copy of those three values
+  and, when the file changes, re-reads it on the game thread. Fabric stores the same options in
+  `hitindication-client.json`, saved atomically, with a malformed file backed up rather than
+  overwritten, and an optional Mod Menu + Cloth Config screen.
 - **Translations.** The key-binding category key was renamed to the 26.x format
   (`key.category.hitindication.hitindication`); English config screen titles and tooltips were
   added, taken from the original config comments.

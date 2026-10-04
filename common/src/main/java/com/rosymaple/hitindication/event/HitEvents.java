@@ -1,33 +1,32 @@
 package com.rosymaple.hitindication.event;
 
+import com.rosymaple.hitindication.client.IndicatorMath;
 import com.rosymaple.hitindication.latesthits.HitIndicatorType;
 import com.rosymaple.hitindication.latesthits.HitMarkerType;
 import com.rosymaple.hitindication.latesthits.PacketsHelper;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
-import net.minecraft.world.damagesource.CombatRules;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion;
-import net.minecraft.world.item.alchemy.PotionContents;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.phys.AABB;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Server-side hit detection. The loader modules call these from their own damage, death, critical
- * hit and projectile hooks; everything after that point is shared.
+ * hit, effect and projectile hooks; everything after that point is shared.
  */
 public class HitEvents {
+    // The thrown potion that is shattering right now, between its impact and its removal. Its splash
+    // effects name the thrower, not the potion, as their source, so this is how they are told apart
+    // from effects the same entity applies some other way. Only touched on the server thread.
+    private static @Nullable AbstractThrownPotion shatteringPotion;
+
     /**
      * A living entity took damage that was not entirely stopped by a shield.
      *
@@ -36,18 +35,21 @@ public class HitEvents {
     public static void onDamageTaken(LivingEntity target, DamageSource source, float healthDamage) {
         Entity attackerProjectile = source.getDirectEntity();
         Entity attacker = source.getEntity();
-        if(attackerProjectile instanceof AbstractThrownPotion)
+        if(isPotion(attackerProjectile)) {
+            if(target instanceof ServerPlayer targetPlayer && !isSelf(attacker, target))
+                PotionHits.recordDamage(targetPlayer, attackerProjectile, attacker instanceof LivingEntity owner ? owner : null, healthDamage);
             return;
+        }
 
         if(attacker instanceof ServerPlayer attackingPlayer)
-            if(attackerProjectile instanceof Projectile && !attacker.getUUID().equals(target.getUUID()))
+            if(attackerProjectile instanceof Projectile && !isSelf(attacker, target))
                 PacketsHelper.addHitMarker(attackingPlayer, HitMarkerType.CRIT);
 
         if(!(target instanceof ServerPlayer targetPlayer))
             return;
 
         int damagePercent = (int)Math.floor((healthDamage / targetPlayer.getMaxHealth() * 100));
-        if(!(attacker instanceof LivingEntity livingAttacker) || attacker.getUUID().equals(target.getUUID()))
+        if(!(attacker instanceof LivingEntity livingAttacker) || isSelf(attacker, target))
             PacketsHelper.addHitIndicator(targetPlayer, null, HitIndicatorType.ND_HIT, damagePercent, false);
         else
             PacketsHelper.addHitIndicator(targetPlayer, livingAttacker, HitIndicatorType.HIT, damagePercent, false);
@@ -57,7 +59,7 @@ public class HitEvents {
     public static void onBlocked(LivingEntity target, DamageSource source) {
         Entity attackerProjectile = source.getDirectEntity();
         Entity attacker = source.getEntity();
-        if(attackerProjectile instanceof AbstractThrownPotion)
+        if(isPotion(attackerProjectile))
             return;
         if(!(attacker instanceof LivingEntity livingAttacker))
             return;
@@ -69,7 +71,8 @@ public class HitEvents {
                 && directAttacker.getSecondsToDisableBlocking() > 0.0F;
 
         if(target instanceof ServerPlayer targetPlayer)
-            PacketsHelper.addHitIndicator(targetPlayer, livingAttacker, HitIndicatorType.BLOCK, shieldAboutToBreak ? 125 : 0, false);
+            PacketsHelper.addHitIndicator(targetPlayer, livingAttacker, HitIndicatorType.BLOCK,
+                    shieldAboutToBreak ? IndicatorMath.SHIELD_DISABLE_PERCENT : 0, false);
 
         if(livingAttacker instanceof ServerPlayer attackingPlayer)
             PacketsHelper.addHitMarker(attackingPlayer, HitMarkerType.CRIT);
@@ -84,69 +87,69 @@ public class HitEvents {
 
         if(!(attacker instanceof ServerPlayer player))
             return;
-        if(attacker.getUUID().equals(entity.getUUID()))
+        if(isSelf(attacker, entity))
             return;
 
         PacketsHelper.addHitMarker(player, HitMarkerType.KILL);
     }
 
-    /** A splash or lingering potion is about to shatter. */
+    /** A splash or lingering potion is about to shatter (after any mod could cancel the impact). */
     public static void onPotionImpact(AbstractThrownPotion potion) {
-        if(!(potion.getOwner() instanceof LivingEntity source) || !(potion.level() instanceof ServerLevel level))
-            return;
-
-        AABB axisalignedbb = potion.getBoundingBox().inflate(4.0D, 2.0D, 4.0D);
-        List<ServerPlayer> list = level.getEntitiesOfClass(ServerPlayer.class, axisalignedbb);
-        if(list.isEmpty())
-            return;
-
-        List<MobEffectInstance> effects = new ArrayList<>();
-        potion.getItem().getOrDefault(DataComponents.POTION_CONTENTS, PotionContents.EMPTY).getAllEffects().forEach(effects::add);
-
-        boolean hasNegativeEffects = effects.stream().anyMatch((x) -> !x.getEffect().value().isBeneficial());
-        boolean damagingPotion = effects.stream().anyMatch((x) -> x.is(MobEffects.POISON)
-                || x.is(MobEffects.INSTANT_DAMAGE)
-                || x.is(MobEffects.WITHER));
-
-        Optional<MobEffectInstance> instantDamage = effects.stream().filter((x) -> x.is(MobEffects.INSTANT_DAMAGE)).findFirst();
-        for(ServerPlayer player : list) {
-            if(!player.isAffectedByPotions() || player.getUUID().equals(source.getUUID()))
-                continue;
-
-            if(damagingPotion || hasNegativeEffects) {
-                int damagePercent = 0;
-                if(instantDamage.isPresent()) {
-                    float damage = 6 << instantDamage.get().getAmplifier();
-                    damagePercent = (int)Math.floor(applyPotionDamageCalculations(player, level, level.damageSources().magic(), damage) / player.getMaxHealth() * 100);
-                }
-
-                PacketsHelper.addHitIndicator(player, source, HitIndicatorType.HIT, damagePercent, hasNegativeEffects && !damagingPotion);
-            }
-        }
+        if(potion.level() instanceof ServerLevel)
+            shatteringPotion = potion;
     }
 
-    // A side-effect-free copy of the Resistance and enchantment steps of
-    // LivingEntity#getDamageAfterMagicAbsorb, used to predict how hard Instant Damage will hit.
-    private static float applyPotionDamageCalculations(ServerPlayer player, ServerLevel level, DamageSource damageSource, float damage) {
-        if(damageSource.is(DamageTypeTags.BYPASSES_EFFECTS))
-            return damage;
+    /**
+     * An effect is being applied to a living entity: it passed the entity's immunities and any
+     * mod's veto. Only effects from a shattering splash potion or from an effect cloud make an
+     * indicator; damage they deal arrives through {@link #onDamageTaken}.
+     *
+     * @param source the source the game passed along with the effect
+     */
+    public static void onEffectApplied(LivingEntity target, MobEffectInstance effect, @Nullable Entity source) {
+        if(!(target instanceof ServerPlayer player) || effect.getEffect().value().isBeneficial())
+            return;
 
-        MobEffectInstance resistance = player.getEffect(MobEffects.RESISTANCE);
-        if(resistance != null && !damageSource.is(DamageTypeTags.BYPASSES_RESISTANCE)) {
-            int absorbValue = (resistance.getAmplifier() + 1) * 5;
-            int absorb = 25 - absorbValue;
-            damage = Math.max(damage * absorb / 25.0F, 0.0F);
+        Entity potion;
+        LivingEntity owner;
+        if(source instanceof AreaEffectCloud cloud) {
+            potion = cloud;
+            owner = cloud.getOwner();
+        } else {
+            AbstractThrownPotion splash = shatteringPotion;
+            if(splash == null || splash.isRemoved() || source != splash.getEffectSource())
+                return;
+            potion = splash;
+            owner = splash.getOwner() instanceof LivingEntity livingOwner ? livingOwner : null;
         }
 
-        if(damage <= 0.0F)
-            return 0.0F;
-        if(damageSource.is(DamageTypeTags.BYPASSES_ENCHANTMENTS))
-            return damage;
+        // As in the original, a potion never points at the player who threw it.
+        if(owner == null || isSelf(owner, player))
+            return;
 
-        float enchantmentArmor = EnchantmentHelper.getDamageProtection(level, player, damageSource);
-        if(enchantmentArmor > 0.0F)
-            damage = CombatRules.getDamageAfterMagicAbsorb(damage, enchantmentArmor);
+        // Poison and Wither hurt over time, so the original showed them like damage rather than as
+        // a "non-damaging negative potion".
+        boolean damaging = effect.is(MobEffects.POISON) || effect.is(MobEffects.WITHER);
+        PotionHits.recordEffect(player, potion, owner, damaging);
+    }
 
-        return damage;
+    /** End of every server tick: one indicator for each potion that hit each player this tick. */
+    public static void onServerTickEnd() {
+        shatteringPotion = null;
+        PotionHits.flush();
+    }
+
+    /** The server is stopping: forget players and entities it will not tick again. */
+    public static void onServerStopped() {
+        shatteringPotion = null;
+        PotionHits.clear();
+    }
+
+    private static boolean isPotion(@Nullable Entity directEntity) {
+        return directEntity instanceof AbstractThrownPotion || directEntity instanceof AreaEffectCloud;
+    }
+
+    private static boolean isSelf(@Nullable Entity attacker, Entity target) {
+        return attacker != null && attacker.getUUID().equals(target.getUUID());
     }
 }

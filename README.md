@@ -31,7 +31,12 @@ it can still join.
 - **Fabric:** `config/hitindication-client.json`, or the config button in
   [Mod Menu](https://modrinth.com/mod/modmenu) when [Cloth Config](https://modrinth.com/mod/cloth-config)
   is also installed. The file is read when the game starts, so edit it with the game closed (or use
-  the Mod Menu screen).
+  the Mod Menu screen). If it cannot be parsed, it is kept as `hitindication-client.json.broken-<time>`
+  and replaced with defaults.
+
+With distance scaling on (the default), indicators shrink beyond the cutoff distance and are not
+drawn at all from 10 blocks past it, as in the original. Turn distance scaling off to always see
+distant hits.
 
 ## Requirements
 

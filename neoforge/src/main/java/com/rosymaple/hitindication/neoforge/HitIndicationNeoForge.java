@@ -15,7 +15,10 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
 import net.neoforged.neoforge.event.entity.player.CriticalHitEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
@@ -36,6 +39,9 @@ public class HitIndicationNeoForge {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationNeoForge::onDeath);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationNeoForge::onCriticalHit);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationNeoForge::onProjectileImpact);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationNeoForge::onEffectAdded);
+        NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post event) -> HitEvents.onServerTickEnd());
+        NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> HitEvents.onServerStopped());
     }
 
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
@@ -75,5 +81,10 @@ public class HitIndicationNeoForge {
     private static void onProjectileImpact(ProjectileImpactEvent event) {
         if(event.getProjectile() instanceof AbstractThrownPotion potion)
             HitEvents.onPotionImpact(potion);
+    }
+
+    // Posted once the effect has passed the entity's immunities and MobEffectEvent.Applicable.
+    private static void onEffectAdded(MobEffectEvent.Added event) {
+        HitEvents.onEffectApplied(event.getEntity(), event.getEffectInstance(), event.getEffectSource());
     }
 }

@@ -6,6 +6,7 @@ import com.rosymaple.hitindication.config.HitIndicatorClientConfigs;
 import com.rosymaple.hitindication.latesthits.ClientLatestHits;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
@@ -21,6 +22,8 @@ public class ModKeyBindings {
     public static KeyMapping toggleBlockIndicators;
     public static KeyMapping toggleEdgeOfScreenMode;
 
+    private static LocalPlayer lastPlayer;
+
     public static List<KeyMapping> create(KeyMapping.Category category) {
         toggleHitIndication = new KeyMapping("key.hitindication.toggle_hit_indication",
                 InputConstants.KEY_H, category);
@@ -33,8 +36,18 @@ public class ModKeyBindings {
 
     /** Runs at the start of every client tick, as the original's ClientTickEvent (phase START) did. */
     public static void onClientTick(Minecraft minecraft) {
-        if(minecraft.player == null || minecraft.level == null)
+        if(minecraft.player == null || minecraft.level == null) {
+            lastPlayer = null;
             return;
+        }
+
+        // Respawning replaces the player (in the same dimension the level stays), and the hits
+        // that led up to a death should not follow the player into the new life.
+        if(minecraft.player != lastPlayer) {
+            if(lastPlayer != null)
+                ClientLatestHits.clear();
+            lastPlayer = minecraft.player;
+        }
 
         HitIndicatorClientConfigs.Values config = HitIndicatorClientConfigs.get();
 

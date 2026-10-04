@@ -10,12 +10,11 @@ import com.rosymaple.hitindication.latesthits.HitMarkerType;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
-import net.minecraft.world.phys.Vec2;
-import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3x2fStack;
 
 /**
@@ -49,6 +48,7 @@ public class HitIndicationHud {
     private static final int MARKER_HEIGHT = 20;
     private static final int EDGE_INDICATOR_WIDTH = 16;
     private static final int EDGE_INDICATOR_HEIGHT = 16;
+    /** Space Edge of Screen mode keeps free at the bottom for the hotbar, health and food. */
     private static final int HUD_HEIGHT = 50;
 
     private static String lastHitColorString = HitIndicatorClientConfigs.DEFAULT_HIT_INDICATOR_COLOR;
@@ -58,34 +58,70 @@ public class HitIndicationHud {
 
     public static void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         Minecraft mc = Minecraft.getInstance();
-        if(mc.player == null || mc.level == null)
+        LocalPlayer player = mc.player;
+        if(player == null || mc.level == null)
             return;
         if(ClientLatestHits.latestHitIndicators.isEmpty() && ClientLatestHits.currentHitMarker == null)
             return;
 
+        HitIndicatorClientConfigs.Values config = HitIndicatorClientConfigs.get();
         int screenMiddleX = graphics.guiWidth() / 2;
         int screenMiddleY = graphics.guiHeight() / 2;
 
-        updateColorsIfNeeded();
+        // The toggles also hide indicators that are already on screen, not only later ones.
+        if(config.enableHitIndication() && !ClientLatestHits.latestHitIndicators.isEmpty()) {
+            updateColorsIfNeeded(config);
+            IndicatorStyle style = new IndicatorStyle(config);
+            float yaw = player.getYRot();
+            for (HitIndicator hit : ClientLatestHits.latestHitIndicators) {
+                if(hit.getType() == HitIndicatorType.BLOCK && !config.showBlueIndicators())
+                    continue;
+                // Edge of Screen mode never drew the non-directional indicator.
+                if(hit.getType() == HitIndicatorType.ND_HIT && (!config.enableNonDirectionalDamage() || style.edgeOfScreen))
+                    continue;
 
-        Vec3 viewVector = calculateViewVector(0, mc.player.getYRot());
-        Vec2 lookVec = new Vec2((float)viewVector.x, (float)viewVector.z);
-        Vec2 playerPos = new Vec2((float)mc.player.getX(), (float)mc.player.getZ());
-        if (HitIndicatorClientConfigs.get().edgeOfScreenMode()) {
-            for (HitIndicator hit : ClientLatestHits.latestHitIndicators)
-                drawIndicatorEdge(graphics, hit, screenMiddleX, screenMiddleY, playerPos, lookVec);
-        } else {
-            for (HitIndicator hit : ClientLatestHits.latestHitIndicators)
-                drawIndicator(graphics, hit, screenMiddleX, screenMiddleY, playerPos, lookVec);
+                // Subtract in double precision: a float cannot hold a world coordinate near the
+                // border to the block.
+                double dx = hit.getX() - player.getX();
+                double dy = hit.getY() - player.getY();
+                double dz = hit.getZ() - player.getZ();
+                float angle = IndicatorMath.angleTo(yaw, dx, dz);
+                float scale = indicatorScale(hit, style, Math.sqrt(dx * dx + dy * dy + dz * dz));
+                if(style.edgeOfScreen)
+                    drawIndicatorEdge(graphics, hit, style, angle, scale, screenMiddleX, screenMiddleY);
+                else
+                    drawIndicator(graphics, hit, style, angle, scale, screenMiddleX, screenMiddleY);
+            }
         }
 
-        if (ClientLatestHits.currentHitMarker != null)
+        if (ClientLatestHits.currentHitMarker != null && config.enableHitMarkers())
             drawHitMarker(graphics, ClientLatestHits.currentHitMarker, screenMiddleX, screenMiddleY);
     }
 
-    private static void updateColorsIfNeeded() {
-        String currentHitColor = HitIndicatorClientConfigs.get().hitIndicatorColor();
-        String currentBlockColor = HitIndicatorClientConfigs.get().blockIndicatorColor();
+    /** The config values every indicator drawn this frame needs, read once per frame. */
+    private static final class IndicatorStyle {
+        final boolean edgeOfScreen;
+        final float defaultScale;
+        final boolean sizeDependsOnDamage;
+        final boolean distanceScaling;
+        final int distanceScalingCutoff;
+        final int distanceFromCrosshair;
+        final int opacityPercent;
+
+        IndicatorStyle(HitIndicatorClientConfigs.Values config) {
+            edgeOfScreen = config.edgeOfScreenMode();
+            defaultScale = 1.0F + config.indicatorDefaultScale() / 100.0F;
+            sizeDependsOnDamage = config.sizeDependsOnDamage();
+            distanceScaling = config.enableDistanceScaling();
+            distanceScalingCutoff = config.distanceScalingCutoff();
+            distanceFromCrosshair = config.distanceFromCrosshair();
+            opacityPercent = config.indicatorOpacity();
+        }
+    }
+
+    private static void updateColorsIfNeeded(HitIndicatorClientConfigs.Values config) {
+        String currentHitColor = config.hitIndicatorColor();
+        String currentBlockColor = config.blockIndicatorColor();
         if (!lastHitColorString.equals(currentHitColor)) {
             hitColor = parseColor(currentHitColor, 0xFF0000);
             lastHitColorString = currentHitColor;
@@ -114,101 +150,50 @@ public class HitIndicationHud {
                 ARGB.white(opacity));
     }
 
-    private static void drawIndicator(GuiGraphicsExtractor graphics, HitIndicator hit, int screenMiddleX, int screenMiddleY, Vec2 playerPos, Vec2 lookVec) {
-        Vec3 sourceVec3d = hit.getLocation();
-        Vec2 diff = new Vec2((float)(sourceVec3d.x - playerPos.x), (float)(sourceVec3d.z - playerPos.y));
-        float angleBetween = angleBetween(lookVec, diff);
-        int distanceFromCrosshair = HitIndicatorClientConfigs.get().distanceFromCrosshair();
+    private static void drawIndicator(GuiGraphicsExtractor graphics, HitIndicator hit, IndicatorStyle style, float angle, float scale, int screenMiddleX, int screenMiddleY) {
+        boolean nonDirectional = hit.getType() == HitIndicatorType.ND_HIT;
+        int width = (int)Math.floor((nonDirectional ? ND_INDICATOR_WIDTH : INDICATOR_WIDTH) * scale);
+        int height = (int)Math.floor((nonDirectional ? ND_INDICATOR_WIDTH : INDICATOR_HEIGHT) * scale);
 
-        Vec2 textureScale = calculateIndicatorScale(hit);
-        int scaledTextureWidth = (int)Math.floor(textureScale.x);
-        int scaledTextureHeight = (int)Math.floor(textureScale.y);
-
-        renderIndicator(graphics, hit, screenMiddleX, screenMiddleY, angleBetween,
-                screenMiddleX - scaledTextureWidth / 2,
-                screenMiddleY - scaledTextureHeight / 2 - (hit.getType() == HitIndicatorType.ND_HIT ? 0 : distanceFromCrosshair),
-                scaledTextureWidth, scaledTextureHeight);
+        renderIndicator(graphics, hit, style, screenMiddleX, screenMiddleY, angle,
+                screenMiddleX - width / 2,
+                screenMiddleY - height / 2 - (nonDirectional ? 0 : style.distanceFromCrosshair),
+                width, height);
     }
 
-    private static void drawIndicatorEdge(GuiGraphicsExtractor graphics, HitIndicator hit, int screenMiddleX, int screenMiddleY, Vec2 playerPos, Vec2 lookVec) {
-        if (hit.getType() == HitIndicatorType.ND_HIT)
+    private static void drawIndicatorEdge(GuiGraphicsExtractor graphics, HitIndicator hit, IndicatorStyle style, float angle, float scale, int screenMiddleX, int screenMiddleY) {
+        int width = (int)Math.floor(EDGE_INDICATOR_WIDTH * scale);
+        int height = (int)Math.floor(EDGE_INDICATOR_HEIGHT * scale);
+        if(width <= 0 || height <= 0)
             return;
 
-        Vec3 sourceVec3d = hit.getLocation();
-        Vec2 diff = new Vec2((float)(sourceVec3d.x - playerPos.x), (float)(sourceVec3d.z - playerPos.y));
-        float angleBetween = angleBetween(lookVec, diff);
-
-        Vec2 textureScale = calculateIndicatorScale(hit);
-        int scaledTextureWidth = (int)Math.floor(textureScale.x);
-        int scaledTextureHeight = (int)Math.floor(textureScale.y);
-
-        int blitX, blitY;
-        double targetAngle = -angleBetween;
-        if (targetAngle >= 45.0F && targetAngle <= 135.0F) {
-            blitX = 0;
-            blitY = (int)Mth.lerp((targetAngle - 45.0F) / (90.0F), 0, 2 * screenMiddleY - scaledTextureHeight - HUD_HEIGHT);
-        } else if (targetAngle <= -45.0F && targetAngle >= -135.0F) {
-            blitX = 2 * screenMiddleX - scaledTextureWidth;
-            blitY = (int)Mth.lerp((targetAngle + 45.0F) / (-90.0F), 0, 2 * screenMiddleY - scaledTextureHeight - HUD_HEIGHT);
-        } else if (targetAngle >= 0.0F && targetAngle <= 45.0) {
-            blitX = (int)Mth.lerp(targetAngle / 45.0F, screenMiddleX, 0);
-            blitY = 0;
-        } else if (targetAngle >= -45.0 && targetAngle <= 0.0F) {
-            blitX = (int)Mth.lerp(targetAngle / (-45.0F), screenMiddleX, 2 * screenMiddleX - scaledTextureWidth);
-            blitY = 0;
-        } else if (targetAngle <= 180F && targetAngle >= 135.0F) {
-            blitX = (int)Mth.lerp((targetAngle - 135.0F) / (45.0F), 0, screenMiddleX);
-            blitY = 2 * screenMiddleY - scaledTextureHeight - HUD_HEIGHT;
-        } else {
-            blitX = (int)Mth.lerp((targetAngle + 135.0F) / (-45.0F), 2 * screenMiddleX - scaledTextureWidth, screenMiddleX);
-            blitY = 2 * screenMiddleY - scaledTextureHeight - HUD_HEIGHT;
-        }
-
-        renderIndicator(graphics, hit, blitX + scaledTextureWidth / 2.0F, blitY + scaledTextureHeight / 2.0F,
-                angleBetween, blitX, blitY, scaledTextureWidth, scaledTextureHeight);
+        IndicatorMath.EdgePosition position = IndicatorMath.edgePosition(angle,
+                2 * screenMiddleX, 2 * screenMiddleY, width, height, HUD_HEIGHT);
+        int blitX = Math.round(position.centerX() - width / 2.0F);
+        int blitY = Math.round(position.centerY() - height / 2.0F);
+        renderIndicator(graphics, hit, style, blitX + width / 2.0F, blitY + height / 2.0F,
+                angle, blitX, blitY, width, height);
     }
 
-    private static Vec2 calculateIndicatorScale(HitIndicator hit) {
+    /** Multiplier on the indicator texture's size. */
+    private static float indicatorScale(HitIndicator hit, IndicatorStyle style, double distance) {
+        // The original drew the non-directional indicator at a fixed size, ignoring these options.
         if(hit.getType() == HitIndicatorType.ND_HIT)
-            return new Vec2(ND_INDICATOR_WIDTH * ND_INDICATOR_DEFAULT_SCALE, ND_INDICATOR_WIDTH * ND_INDICATOR_DEFAULT_SCALE);
+            return ND_INDICATOR_DEFAULT_SCALE;
 
-        HitIndicatorClientConfigs.Values config = HitIndicatorClientConfigs.get();
-        float defaultScale = 1.0F + config.indicatorDefaultScale() / 100.0F;
-        float scaledTextureWidthF, scaledTextureHeightF;
-        if(config.edgeOfScreenMode()) {
-            scaledTextureWidthF = EDGE_INDICATOR_WIDTH * defaultScale;
-            scaledTextureHeightF = EDGE_INDICATOR_HEIGHT * defaultScale;
-        } else {
-            scaledTextureWidthF = INDICATOR_WIDTH * defaultScale;
-            scaledTextureHeightF = INDICATOR_HEIGHT * defaultScale;
-        }
-
-        if (config.sizeDependsOnDamage()) {
-            float scale = (hit.getDamagePercent() > 30) ? (1.0F + hit.getDamagePercent()) / 125.0F : 1.0F;
-            scale = Mth.clamp(scale, 0.0F, 3.0F);
-            scaledTextureWidthF *= scale;
-            scaledTextureHeightF *= scale;
-        }
-
-        if (config.enableDistanceScaling()) {
-            float distanceFromPlayer = calculateDistanceFromPlayer(hit.getLocation());
-            float distanceScalingCutoff = config.distanceScalingCutoff();
-            float distanceScaling = (distanceFromPlayer <= distanceScalingCutoff)
-                    ? 0F : ((distanceFromPlayer - distanceScalingCutoff) / 10.0F);
-
-            distanceScaling = Mth.clamp(1.0F - distanceScaling, 0.0F, 1.0F);
-            scaledTextureWidthF *= distanceScaling;
-            scaledTextureHeightF *= distanceScaling;
-        }
-
-        return new Vec2(scaledTextureWidthF, scaledTextureHeightF);
+        float scale = style.defaultScale;
+        if (style.sizeDependsOnDamage)
+            scale *= IndicatorMath.damageScale(hit.getDamagePercent());
+        if (style.distanceScaling)
+            scale *= IndicatorMath.distanceScale(distance, style.distanceScalingCutoff);
+        return scale;
     }
 
-    private static void renderIndicator(GuiGraphicsExtractor graphics, HitIndicator hit, float centerX, float centerY, float rotAngle, int posX, int posY, int scaledTextureWidth, int scaledTextureHeight) {
+    private static void renderIndicator(GuiGraphicsExtractor graphics, HitIndicator hit, IndicatorStyle style, float centerX, float centerY, float rotAngle, int posX, int posY, int scaledTextureWidth, int scaledTextureHeight) {
         if(scaledTextureWidth <= 0 || scaledTextureHeight <= 0)
             return;
 
-        int configuredOpacity = HitIndicatorClientConfigs.get().indicatorOpacity();
+        int configuredOpacity = style.opacityPercent;
         float opacity = hit.getLifeTime() >= 25
                 ? configuredOpacity
                 : configuredOpacity * hit.getLifeTime() / 25.0F;
@@ -222,15 +207,15 @@ public class HitIndicationHud {
             pose.translate(-centerX, -centerY);
         }
 
-        graphics.blit(RenderPipelines.GUI_TEXTURED, indicatorTexture(hit), posX, posY,
+        graphics.blit(RenderPipelines.GUI_TEXTURED, indicatorTexture(hit, style), posX, posY,
                 0, 0, scaledTextureWidth, scaledTextureHeight, scaledTextureWidth, scaledTextureHeight,
                 indicatorColor(hit, opacity));
 
         pose.popMatrix();
     }
 
-    private static Identifier indicatorTexture(HitIndicator hit) {
-        if (HitIndicatorClientConfigs.get().edgeOfScreenMode()) return EDGE_INDICATOR;
+    private static Identifier indicatorTexture(HitIndicator hit, IndicatorStyle style) {
+        if (style.edgeOfScreen) return EDGE_INDICATOR;
         else if (hit.getType() == HitIndicatorType.ND_HIT) return ND_INDICATOR;
         else if (hit.getType() == HitIndicatorType.HIT) return INDICATOR;
         else return INDICATOR_BLOCK;
@@ -244,31 +229,5 @@ public class HitIndicationHud {
     private static Identifier markerTexture(HitMarkerType type, int lifetime) {
         Identifier[] frames = type == HitMarkerType.KILL ? MARKER_KILL : MARKER_CRIT;
         return lifetime > 6 ? frames[9 - lifetime] : frames[3];
-    }
-
-    private static float angleBetween(Vec2 first, Vec2 second) {
-        double dot = first.x * second.x + first.y * second.y;
-        double cross = first.x * second.y - second.x * first.y;
-        double res = Math.atan2(cross, dot) * 180 / Math.PI;
-        return (float)res;
-    }
-
-    private static float calculateDistanceFromPlayer(Vec3 damageLocation) {
-        Vec3 playerPos = Minecraft.getInstance().player.position();
-        double d0 = damageLocation.x - playerPos.x;
-        double d1 = damageLocation.y - playerPos.y;
-        double d2 = damageLocation.z - playerPos.z;
-
-        return (float)Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2);
-    }
-
-    private static Vec3 calculateViewVector(float pPitch, float pYaw) {
-        float f = pPitch * ((float) Math.PI / 180F);
-        float f1 = -pYaw * ((float) Math.PI / 180F);
-        float f2 = Mth.cos(f1);
-        float f3 = Mth.sin(f1);
-        float f4 = Mth.cos(f);
-        float f5 = Mth.sin(f);
-        return new Vec3(f3 * f4, -f5, f2 * f4);
     }
 }
