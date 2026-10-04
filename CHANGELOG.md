@@ -3,7 +3,7 @@
 Versions follow the original mod's feature version. The Minecraft version is a build suffix
 (`2.0.0+26.3`). All four builds (Fabric and NeoForge, 26.2 and 26.3) are released together.
 
-## Unreleased
+## 2.0.1
 
 Fixes:
 
