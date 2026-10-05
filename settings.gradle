@@ -13,7 +13,14 @@ pluginManagement {
 	}
 }
 
+plugins {
+	// ForgeGradle's run tasks ask for a Java 8 toolchain for their launcher; this lets Gradle fetch
+	// it, as Forge's MDK does.
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'hitindication'
 
 include 'fabric'
 include 'neoforge'
+include 'forge'

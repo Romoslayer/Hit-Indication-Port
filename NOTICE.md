@@ -27,7 +27,7 @@ under the same license.
 
 ## This port
 
-Port of version 2.0 to Minecraft 26.2 and 26.3, for Fabric and NeoForge, by Romoslayer.
+Port of version 2.0 to Minecraft 26.2 and 26.3, for Fabric, NeoForge and Forge, by Romoslayer.
 
 **License:** this port, as an adaptation of a CC BY-SA 4.0 work, is itself licensed under
 **CC BY-SA 4.0**. The full license text is in [`LICENSE`](LICENSE) and is included in every jar.
@@ -41,17 +41,18 @@ The work is provided as-is, without warranties of any kind, as set out in sectio
 
 Gameplay behaviour and every config option are kept from version 2.0. Changed:
 
-- **Mod loaders and Minecraft version.** Rewritten from Forge 1.18.2 to Minecraft 26.2/26.3 on both
-  Fabric and NeoForge. The code is split into a shared `common` module and thin `fabric` and
-  `neoforge` modules.
+- **Mod loaders and Minecraft version.** Rewritten from Forge 1.18.2 to Minecraft 26.2/26.3 on
+  Fabric, NeoForge and Forge. The code is split into a shared `common` module and thin `fabric`,
+  `neoforge` and `forge` modules.
 - **Rendering.** Ported from `PoseStack`/`RenderSystem` shader-colour calls to 26.x's
   `GuiGraphicsExtractor` with a 2D pose stack and per-draw ARGB tint. Indicators are drawn as the
   last HUD layer, as before.
 - **Networking.** Forge `SimpleChannel` packets replaced with `CustomPacketPayload` records and
-  stream codecs. The channel is optional, so players without the mod can still join a server
-  running it.
+  stream codecs (on Forge, an optional payload channel). The channel is optional, so players
+  without the mod can still join a server running it.
 - **Damage detection.** Forge's `LivingAttackEvent`/`LivingDamageEvent` replaced with each
-  loader's post-damage hook (NeoForge `LivingDamageEvent.Post`, Fabric `AFTER_DAMAGE`). Shield
+  loader's post-damage hook (NeoForge `LivingDamageEvent.Post`, Fabric `AFTER_DAMAGE`; Forge 26.x
+  still uses `LivingDamageEvent`, now after armor and absorption, plus `ShieldBlockEvent`). Shield
   blocking is read from the game's own blocked-damage result instead of a copy of the old
   `canBlockDamageSource` check, since 26.x reworked shields into the `BlocksAttacks` component;
   likewise "shield about to break" now uses the attacker's `disableBlockingForSeconds` weapon
@@ -80,7 +81,8 @@ Gameplay behaviour and every config option are kept from version 2.0. Changed:
   and gains NeoForge's built-in config screen. The three toggle keys no longer read their setting
   straight back from the config after saving: a background reload of the file could occasionally
   undo a quick second key press, so the NeoForge build keeps its own copy of those three values
-  and, when the file changes, re-reads it on the game thread. Fabric stores the same options in
+  and, when the file changes, re-reads it on the game thread. Forge uses the same file, keys and
+  handling (`ForgeConfigSpec`), without a config screen. Fabric stores the same options in
   `hitindication-client.json`, saved atomically, with a malformed file backed up rather than
   overwritten, and an optional Mod Menu + Cloth Config screen.
 - **Translations.** The key-binding category key was renamed to the 26.x format

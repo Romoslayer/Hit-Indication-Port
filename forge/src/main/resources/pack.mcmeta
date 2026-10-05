@@ -1,0 +1,7 @@
+{
+  "pack": {
+    "description": "Hit Indication (Port) resources",
+    "max_format": ${packFormat},
+    "min_format": ${packMinFormat}
+  }
+}

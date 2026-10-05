@@ -1,7 +1,7 @@
 # Hit Indication (Port)
 
 Hit indicators that show where damage came from, as in Call of Duty or Halo, ported to
-**Minecraft 26.2 and 26.3** for **Fabric** and **NeoForge**.
+**Minecraft 26.2 and 26.3** for **Fabric**, **NeoForge** and **Forge**.
 
 This is an **unofficial** port of [Hit Indication](https://modrinth.com/mod/hit-indication) by
 Hamester and Axovoxel ([source](https://github.com/TheHamester/HitIndicator)), licensed
@@ -28,6 +28,9 @@ it can still join.
 
 - **NeoForge:** `config/hitindication-client.toml` (same file and keys as the original), or
   Mods → Hit Indication → Config. Edits to the file apply while the game is running.
+- **Forge:** `config/hitindication-client.toml`, the same file and keys as on NeoForge. Edits to
+  the file apply while the game is running. Forge has no built-in config screen, so there is no
+  Config button in its Mods list.
 - **Fabric:** `config/hitindication-client.json`, or the config button in
   [Mod Menu](https://modrinth.com/mod/modmenu) when [Cloth Config](https://modrinth.com/mod/cloth-config)
   is also installed. The file is read when the game starts, so edit it with the game closed (or use
@@ -44,17 +47,18 @@ distant hits.
 |---|---|---|
 | Fabric | Fabric Loader 0.19.5+, Fabric API | Fabric Loader 0.19.5+, Fabric API |
 | NeoForge | NeoForge 26.2.x | NeoForge 26.3.x |
+| Forge | Forge 65.x | Forge 66.x |
 
 Java 25.
 
 ## Building
 
 ```bash
-./gradlew buildAll            # Fabric + NeoForge for 26.3
-./gradlew buildAll -Pmc=26.2  # Fabric + NeoForge for 26.2
+./gradlew buildAll            # Fabric, NeoForge and Forge for 26.3
+./gradlew buildAll -Pmc=26.2  # Fabric, NeoForge and Forge for 26.2
 ```
 
-Jars land in `fabric/build/libs/` and `neoforge/build/libs/`.
+Jars land in `fabric/build/libs/`, `neoforge/build/libs/` and `forge/build/libs/`.
 
 ## License
 

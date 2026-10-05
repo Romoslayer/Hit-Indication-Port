@@ -1,7 +1,14 @@
 # Changelog
 
 Versions follow the original mod's feature version. The Minecraft version is a build suffix
-(`2.0.0+26.3`). All four builds (Fabric and NeoForge, 26.2 and 26.3) are released together.
+(`2.0.0+26.3`). All builds (Fabric, NeoForge and Forge, for 26.2 and 26.3) are released together.
+
+## Unreleased
+
+- Forge support: Forge builds for Minecraft 26.2 (Forge 65) and 26.3 (Forge 66), with the same
+  features, config file (`hitindication-client.toml`) and keys as the NeoForge build. Forge has no
+  built-in config screen, so the options are edited in the file (changes apply while the game runs)
+  or with the toggle keys.
 
 ## 2.0.1
 

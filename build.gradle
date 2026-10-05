@@ -76,6 +76,6 @@ subprojects {
 // Convenience: build every loader for the selected Minecraft version.
 tasks.register('buildAll') {
 	group = 'build'
-	description = 'Builds the Fabric and NeoForge jars for the selected Minecraft version.'
-	dependsOn ':fabric:build', ':neoforge:build'
+	description = 'Builds the Fabric, NeoForge and Forge jars for the selected Minecraft version.'
+	dependsOn ':fabric:build', ':neoforge:build', ':forge:build'
 }
