@@ -12,6 +12,9 @@ New:
   built-in config screen, so the options are edited in the file (changes apply while the game runs)
   or with the toggle keys. The Forge jars were released after the Fabric and NeoForge ones, under
   the same version.
+- Minecraft 1.21.1 support: Fabric, NeoForge (21.1) and Forge (52) builds with the same features,
+  config files and keys as the 26.x builds (`2.0.1+1.21.1`, Java 21). Built from the `mc1.21.1`
+  branch and released after the 26.x jars, under the same version.
 
 Fixes:
 

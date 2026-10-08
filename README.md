@@ -1,7 +1,9 @@
 # Hit Indication (Port)
 
 Hit indicators that show where damage came from, as in Call of Duty or Halo, ported to
-**Minecraft 26.2 and 26.3** for **Fabric**, **NeoForge** and **Forge**.
+**Minecraft 26.2 and 26.3** for **Fabric**, **NeoForge** and **Forge**. Builds for
+**Minecraft 1.21.1** (all three loaders) come from the
+[`mc1.21.1`](https://github.com/Romoslayer/Hit-Indication-Port/tree/mc1.21.1) branch.
 
 This is an **unofficial** port of [Hit Indication](https://modrinth.com/mod/hit-indication) by
 Hamester and Axovoxel ([source](https://github.com/TheHamester/HitIndicator)), licensed
