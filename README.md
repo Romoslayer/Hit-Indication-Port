@@ -1,7 +1,8 @@
 # Hit Indication (Port)
 
 Hit indicators that show where damage came from, as in Call of Duty or Halo, ported to
-**Minecraft 26.2 and 26.3** for **Fabric**, **NeoForge** and **Forge**.
+**Minecraft 1.21.1** (this branch; 26.2 and 26.3 are on `main`) for **Fabric**, **NeoForge** and
+**Forge**.
 
 This is an **unofficial** port of [Hit Indication](https://modrinth.com/mod/hit-indication) by
 Hamester and Axovoxel ([source](https://github.com/TheHamester/HitIndicator)), licensed
@@ -43,19 +44,18 @@ distant hits.
 
 ## Requirements
 
-| | Minecraft 26.2 | Minecraft 26.3 |
-|---|---|---|
-| Fabric | Fabric Loader 0.19.5+, Fabric API | Fabric Loader 0.19.5+, Fabric API |
-| NeoForge | NeoForge 26.2.x | NeoForge 26.3.x |
-| Forge | Forge 65.x | Forge 66.x |
+| | Minecraft 1.21.1 |
+|---|---|
+| Fabric | Fabric Loader 0.19.5+, Fabric API |
+| NeoForge | NeoForge 21.1.x |
+| Forge | Forge 52.x |
 
-Java 25.
+Java 21.
 
 ## Building
 
 ```bash
-./gradlew buildAll            # Fabric, NeoForge and Forge for 26.3
-./gradlew buildAll -Pmc=26.2  # Fabric, NeoForge and Forge for 26.2
+./gradlew buildAll   # Fabric, NeoForge and Forge for 1.21.1
 ```
 
 Jars land in `fabric/build/libs/`, `neoforge/build/libs/` and `forge/build/libs/`.

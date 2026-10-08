@@ -6,7 +6,7 @@ import com.rosymaple.hitindication.latesthits.ClientLatestHits;
 import com.rosymaple.hitindication.networking.AddHitIndicatorS2CPacket;
 import com.rosymaple.hitindication.networking.SetHitMarkerS2CPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion;
+import net.minecraft.world.entity.projectile.ThrownPotion;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -61,9 +61,10 @@ public class HitIndicationNeoForge {
         if(blocked)
             HitEvents.onBlocked(event.getEntity(), event.getSource());
 
-        // Matches vanilla's own "did this hit land" test in LivingEntity#hurtServer.
+        // Matches vanilla's own "did this hit land" test in LivingEntity#hurt. By now the new damage
+        // has had armor, enchantments and absorption taken off: it is what the health loses.
         if(!blocked || event.getOriginalDamage() - event.getBlockedDamage() > 0.0F)
-            HitEvents.onDamageTaken(event.getEntity(), event.getSource(), event.getHealthDamage());
+            HitEvents.onDamageTaken(event.getEntity(), event.getSource(), event.getNewDamage());
     }
 
     private static void onDeath(LivingDeathEvent event) {
@@ -79,7 +80,7 @@ public class HitIndicationNeoForge {
     }
 
     private static void onProjectileImpact(ProjectileImpactEvent event) {
-        if(event.getProjectile() instanceof AbstractThrownPotion potion)
+        if(event.getProjectile() instanceof ThrownPotion potion)
             HitEvents.onPotionImpact(potion);
     }
 

@@ -2,7 +2,6 @@ package com.rosymaple.hitindication.fabric.compat;
 
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
-import com.terraformersmc.modmenu.util.NullScreenFactory;
 import net.fabricmc.loader.api.FabricLoader;
 
 /**
@@ -13,8 +12,9 @@ import net.fabricmc.loader.api.FabricLoader;
 public class ModMenuIntegration implements ModMenuApi {
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
+        // A factory that makes no screen is Mod Menu 11's way of saying "no config screen".
         if (!FabricLoader.getInstance().isModLoaded("cloth-config"))
-            return new NullScreenFactory<>();
+            return parent -> null;
 
         return ClothConfigScreen::create;
     }

@@ -1,22 +1,22 @@
 package com.rosymaple.hitindication.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.rosymaple.hitindication.HitIndication;
 import com.rosymaple.hitindication.config.HitIndicatorClientConfigs;
 import com.rosymaple.hitindication.latesthits.ClientLatestHits;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
 /**
- * The three toggle keys. The loader creates the {@link KeyMapping.Category} (each loader has its
- * own way of registering one) and registers the mappings this class builds.
+ * The three toggle keys. The loader registers the mappings this class builds. On 1.21.1 a key
+ * category is just the translation key of its heading on the Controls screen.
  */
 public class ModKeyBindings {
-    public static final Identifier CATEGORY_ID = HitIndication.id("hitindication");
+    // The key 26.x derives from its category id "hitindication:hitindication", so the
+    // translations are shared.
+    public static final String CATEGORY = "key.category.hitindication.hitindication";
 
     public static KeyMapping toggleHitIndication;
     public static KeyMapping toggleBlockIndicators;
@@ -24,13 +24,13 @@ public class ModKeyBindings {
 
     private static LocalPlayer lastPlayer;
 
-    public static List<KeyMapping> create(KeyMapping.Category category) {
+    public static List<KeyMapping> create() {
         toggleHitIndication = new KeyMapping("key.hitindication.toggle_hit_indication",
-                InputConstants.KEY_H, category);
+                InputConstants.KEY_H, CATEGORY);
         toggleBlockIndicators = new KeyMapping("key.hitindication.toggle_block_indicators",
-                InputConstants.KEY_B, category);
+                InputConstants.KEY_B, CATEGORY);
         toggleEdgeOfScreenMode = new KeyMapping("key.hitindication.toggle_edge_of_screen_mode",
-                InputConstants.KEY_G, category);
+                InputConstants.KEY_G, CATEGORY);
         return List.of(toggleHitIndication, toggleBlockIndicators, toggleEdgeOfScreenMode);
     }
 

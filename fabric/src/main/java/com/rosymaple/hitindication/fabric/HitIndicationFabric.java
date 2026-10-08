@@ -18,7 +18,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 public class HitIndicationFabric implements ModInitializer {
-    // One frame per LivingEntity#hurtServer call in progress, innermost first. Collects the damage
+    // One frame per LivingEntity#hurt call in progress, innermost first. Collects the damage
     // the hit takes from a player's health (see PlayerMixin), so it can be reported the way
     // NeoForge's getHealthDamage does; Fabric's AFTER_DAMAGE only gives the damage before armor.
     // Only touched on the server thread.
@@ -41,8 +41,8 @@ public class HitIndicationFabric implements ModInitializer {
                 ServerPlayNetworking.send(player, payload);
         });
 
-        PayloadTypeRegistry.clientboundPlay().register(AddHitIndicatorS2CPacket.TYPE, AddHitIndicatorS2CPacket.STREAM_CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(SetHitMarkerS2CPacket.TYPE, SetHitMarkerS2CPacket.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(AddHitIndicatorS2CPacket.TYPE, AddHitIndicatorS2CPacket.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(SetHitMarkerS2CPacket.TYPE, SetHitMarkerS2CPacket.STREAM_CODEC);
 
         // AFTER_DAMAGE skips fatal hits; LivingEntityMixin reports those.
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamageTaken, damageTaken, blocked) ->
@@ -79,7 +79,7 @@ public class HitIndicationFabric implements ModInitializer {
     }
 
     /**
-     * A hit got through LivingEntity#hurtServer.
+     * A hit got through LivingEntity#hurt.
      *
      * @param damageTaken damage after shields, before armor
      */
@@ -94,7 +94,7 @@ public class HitIndicationFabric implements ModInitializer {
         if(blocked)
             HitEvents.onBlocked(entity, source);
 
-        // Matches vanilla's own "did this hit land" test in LivingEntity#hurtServer.
+        // Matches vanilla's own "did this hit land" test in LivingEntity#hurt.
         if(!blocked || damageTaken > 0.0F)
             HitEvents.onDamageTaken(entity, source, frame != null ? frame.healthDamage : damageTaken);
     }

@@ -1,23 +1,25 @@
-// Root project: holds only the settings both loader modules share. The mod itself is built by
-// :fabric and :neoforge, each of which compiles the shared sources in common/ against its own
-// Minecraft dependency.
+// Root project: holds only the settings the loader modules share. The mod itself is built by
+// :fabric, :neoforge and :forge, each of which compiles the shared sources in common/ against its
+// own Minecraft dependency.
 
 subprojects {
 	apply plugin: 'java'
 
-	// Which Minecraft version this build targets. Pass -Pmc=26.2 to build for 26.2 instead.
-	ext.minecraftVersion = project.findProperty('mc') ?: '26.3'
+	// The Minecraft version this branch targets (1.21.1; 26.2 and 26.3 are built from main).
+	ext.minecraftVersion = project.findProperty('mc') ?: '1.21.1'
 	ext.mcKey = ext.minecraftVersion.replace('.', '_')
 	ext.modVersion = "${project.mod_version}+${ext.minecraftVersion}"
+	ext.modJavaVersion = (project.java_version as String).toInteger()
 
-	// "26.2" -> "[26.2,26.3)", so a build never claims to support the next Minecraft version.
+	// "1.21.1" -> "[1.21.1,1.21.2)": 1.21.2 changed much of the code this build is compiled
+	// against, so a build never claims to support it.
 	def parts = ext.minecraftVersion.tokenize('.')
-	ext.minecraftRange = "[${ext.minecraftVersion},${parts[0]}.${(parts[1] as int) + 1})"
+	ext.minecraftRange = "[${ext.minecraftVersion},${parts[0]}.${parts[1]}.${(parts[2] as int) + 1})"
 
 	version = ext.modVersion
 	group = project.maven_group
 
-	// Both loaders compile the same shared sources.
+	// Every loader compiles the same shared sources.
 	sourceSets.main.java.srcDir rootProject.file('common/src/main/java')
 	sourceSets.main.resources.srcDir rootProject.file('common/src/main/resources')
 
@@ -29,6 +31,10 @@ subprojects {
 	}
 
 	dependencies {
+		// Minecraft 1.21.1 does not ship JSpecify (26.x does); the annotations are compile-time only.
+		compileOnly 'org.jspecify:jspecify:1.0.0'
+		testCompileOnly 'org.jspecify:jspecify:1.0.0'
+
 		testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
 		testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2'
 	}
@@ -42,15 +48,15 @@ subprojects {
 	}
 
 	tasks.withType(JavaCompile).configureEach {
-		it.options.release = 25
+		it.options.release = modJavaVersion
 		it.options.encoding = 'UTF-8'
 	}
 
 	java {
 		withSourcesJar()
 
-		sourceCompatibility = JavaVersion.VERSION_25
-		targetCompatibility = JavaVersion.VERSION_25
+		sourceCompatibility = JavaVersion.toVersion(modJavaVersion)
+		targetCompatibility = JavaVersion.toVersion(modJavaVersion)
 	}
 
 	// CC BY-SA 4.0 section 3(a)(1)(C) requires the license (or a link to it) to travel with every
@@ -73,9 +79,9 @@ subprojects {
 	}
 }
 
-// Convenience: build every loader for the selected Minecraft version.
+// Convenience: build every loader.
 tasks.register('buildAll') {
 	group = 'build'
-	description = 'Builds the Fabric, NeoForge and Forge jars for the selected Minecraft version.'
+	description = 'Builds the Fabric, NeoForge and Forge jars for Minecraft 1.21.1.'
 	dependsOn ':fabric:build', ':neoforge:build', ':forge:build'
 }

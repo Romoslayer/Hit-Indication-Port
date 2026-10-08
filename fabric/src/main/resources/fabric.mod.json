@@ -9,7 +9,7 @@
 		"Axovoxel"
 	],
 	"contributors": [
-		"Romoslayer (Fabric/NeoForge/Forge port to Minecraft 26.2 and 26.3)",
+		"Romoslayer (Fabric/NeoForge/Forge port to Minecraft 1.21.1, 26.2 and 26.3)",
 		"HaHaWTH (Simplified and Traditional Chinese localization)",
 		"Emik (Swedish and toki pona localization)",
 		"Enitoni (Norwegian localization)",
@@ -40,8 +40,8 @@
 	],
 	"depends": {
 		"fabricloader": ">=0.19.5",
-		"minecraft": "~${minecraft}",
-		"java": ">=25",
+		"minecraft": "${minecraft}",
+		"java": ">=21",
 		"fabric-api": "*"
 	},
 	"suggests": {

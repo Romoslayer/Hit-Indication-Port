@@ -6,13 +6,16 @@ base {
 	archivesName = "${archives_base_name}-forge"
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+java.toolchain.languageVersion = JavaLanguageVersion.of(modJavaVersion)
 
 def forgeVersion = project.property("mc_${mcKey}_forge")
-// "26.3-66.0.9" -> "66": the Forge major version, which mods.toml's ranges use.
+// "1.21.1-52.1.16" -> "52": the Forge major version, which mods.toml's ranges use.
 def forgeMajor = forgeVersion.tokenize('-')[1].tokenize('.')[0]
 
 minecraft {
+	// 1.21.1 still ships obfuscated; build against Mojang's names, which Forge also runs on.
+	mappings channel: 'official', version: minecraftVersion
+
 	runs {
 		configureEach {
 			workingDir = layout.projectDirectory.dir('run')
@@ -41,20 +44,18 @@ processResources {
 	def version = project.version
 	def minecraft = minecraftVersion
 	def mcRange = minecraftRange
-	// The resource pack format of each Minecraft version, as its Forge MDK writes it.
-	def packFormat = [ '26.2': 107, '26.3': 121 ][minecraftVersion]
-	def packMinFormat = [ '26.2': '[107, 1]', '26.3': '121' ][minecraftVersion]
+	// The resource pack format of Minecraft 1.21.1.
+	def packFormat = [ '1.21.1': 34 ][minecraftVersion]
 	inputs.property 'version', version
 	inputs.property 'minecraft', minecraft
 	inputs.property 'minecraftRange', mcRange
 	inputs.property 'forgeMajor', forgeMajor
 	inputs.property 'packFormat', packFormat
-	inputs.property 'packMinFormat', packMinFormat
 
 	filesMatching('META-INF/mods.toml') {
 		expand 'version': version, 'minecraft': minecraft, 'minecraftRange': mcRange, 'forgeMajor': forgeMajor
 	}
 	filesMatching('pack.mcmeta') {
-		expand 'packFormat': packFormat, 'packMinFormat': packMinFormat
+		expand 'packFormat': packFormat
 	}
 }

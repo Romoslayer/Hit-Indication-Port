@@ -5,7 +5,6 @@ import com.rosymaple.hitindication.client.HitIndicationHud;
 import com.rosymaple.hitindication.client.ModKeyBindings;
 import com.rosymaple.hitindication.config.HitIndicatorClientConfigs;
 import com.rosymaple.hitindication.latesthits.ClientLatestHits;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.neoforged.api.distmarker.Dist;
@@ -49,9 +48,7 @@ public class HitIndicationNeoForgeClient {
     }
 
     private static void registerKeyMappings(RegisterKeyMappingsEvent event) {
-        KeyMapping.Category category = new KeyMapping.Category(ModKeyBindings.CATEGORY_ID);
-        event.registerCategory(category);
-        ModKeyBindings.create(category).forEach(event::register);
+        ModKeyBindings.create().forEach(event::register);
     }
 
     private static void registerGuiLayers(RegisterGuiLayersEvent event) {

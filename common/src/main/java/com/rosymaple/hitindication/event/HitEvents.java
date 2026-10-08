@@ -1,5 +1,6 @@
 package com.rosymaple.hitindication.event;
 
+import com.rosymaple.hitindication.HitIndication;
 import com.rosymaple.hitindication.client.IndicatorMath;
 import com.rosymaple.hitindication.latesthits.HitIndicatorType;
 import com.rosymaple.hitindication.latesthits.HitMarkerType;
@@ -14,7 +15,7 @@ import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
-import net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion;
+import net.minecraft.world.entity.projectile.ThrownPotion;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -25,7 +26,7 @@ public class HitEvents {
     // The thrown potion that is shattering right now, between its impact and its removal. Its splash
     // effects name the thrower, not the potion, as their source, so this is how they are told apart
     // from effects the same entity applies some other way. Only touched on the server thread.
-    private static @Nullable AbstractThrownPotion shatteringPotion;
+    private static @Nullable ThrownPotion shatteringPotion;
 
     /**
      * A living entity took damage that was not entirely stopped by a shield.
@@ -64,11 +65,11 @@ public class HitEvents {
         if(!(attacker instanceof LivingEntity livingAttacker))
             return;
 
-        // Mirrors Player#blockUsingItem: only a melee hit from a weapon that disables blocking (an
+        // Mirrors Player#blockUsingShield: only a melee hit from a weapon that disables shields (an
         // axe, by default) puts the shield on cooldown.
         boolean shieldAboutToBreak = !source.is(DamageTypeTags.IS_PROJECTILE)
                 && attackerProjectile instanceof LivingEntity directAttacker
-                && directAttacker.getSecondsToDisableBlocking() > 0.0F;
+                && HitIndication.platform().disablesShield(directAttacker, target);
 
         if(target instanceof ServerPlayer targetPlayer)
             PacketsHelper.addHitIndicator(targetPlayer, livingAttacker, HitIndicatorType.BLOCK,
@@ -94,7 +95,7 @@ public class HitEvents {
     }
 
     /** A splash or lingering potion is about to shatter (after any mod could cancel the impact). */
-    public static void onPotionImpact(AbstractThrownPotion potion) {
+    public static void onPotionImpact(ThrownPotion potion) {
         if(potion.level() instanceof ServerLevel)
             shatteringPotion = potion;
     }
@@ -116,7 +117,7 @@ public class HitEvents {
             potion = cloud;
             owner = cloud.getOwner();
         } else {
-            AbstractThrownPotion splash = shatteringPotion;
+            ThrownPotion splash = shatteringPotion;
             if(splash == null || splash.isRemoved() || source != splash.getEffectSource())
                 return;
             potion = splash;
@@ -146,7 +147,7 @@ public class HitEvents {
     }
 
     private static boolean isPotion(@Nullable Entity directEntity) {
-        return directEntity instanceof AbstractThrownPotion || directEntity instanceof AreaEffectCloud;
+        return directEntity instanceof ThrownPotion || directEntity instanceof AreaEffectCloud;
     }
 
     private static boolean isSelf(@Nullable Entity attacker, Entity target) {

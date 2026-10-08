@@ -6,8 +6,13 @@ base {
 	archivesName = "${archives_base_name}-neoforge"
 }
 
+def neoForgeVersion = project.property("mc_${mcKey}_neoforge")
+// "21.1.255" -> "[21.1,21.2)": NeoForge's own version range for this Minecraft version.
+def neoParts = neoForgeVersion.tokenize('.')
+def neoForgeRange = "[${neoParts[0]}.${neoParts[1]},${neoParts[0]}.${(neoParts[1] as int) + 1})"
+
 neoForge {
-	version = project.property("mc_${mcKey}_neoforge")
+	version = neoForgeVersion
 
 	runs {
 		configureEach {
@@ -36,8 +41,9 @@ processResources {
 	inputs.property 'version', version
 	inputs.property 'minecraft', minecraft
 	inputs.property 'minecraftRange', mcRange
+	inputs.property 'neoForgeRange', neoForgeRange
 
 	filesMatching('META-INF/neoforge.mods.toml') {
-		expand 'version': version, 'minecraft': minecraft, 'minecraftRange': mcRange
+		expand 'version': version, 'minecraft': minecraft, 'minecraftRange': mcRange, 'neoForgeRange': neoForgeRange
 	}
 }

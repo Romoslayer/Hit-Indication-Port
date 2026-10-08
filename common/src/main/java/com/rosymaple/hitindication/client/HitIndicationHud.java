@@ -7,34 +7,34 @@ import com.rosymaple.hitindication.latesthits.HitIndicator;
 import com.rosymaple.hitindication.latesthits.HitIndicatorType;
 import com.rosymaple.hitindication.latesthits.HitMarker;
 import com.rosymaple.hitindication.latesthits.HitMarkerType;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
-import net.minecraft.util.ARGB;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
-import org.joml.Matrix3x2fStack;
 
 /**
- * Draws the hit indicators and crit/kill markers. Registered as the last HUD element on both
- * loaders, which is where the original drew (after the whole overlay).
+ * Draws the hit indicators and crit/kill markers. Registered as the last HUD layer on every
+ * loader, which is where the original drew (after the whole overlay).
  */
 public class HitIndicationHud {
-    public static final Identifier LAYER_ID = HitIndication.id("hit_indicators");
+    public static final ResourceLocation LAYER_ID = HitIndication.id("hit_indicators");
 
-    private static final Identifier INDICATOR = HitIndication.id("textures/hit/indicator.png");
-    private static final Identifier EDGE_INDICATOR = HitIndication.id("textures/hit/edge_indicator.png");
-    private static final Identifier INDICATOR_BLOCK = HitIndication.id("textures/hit/indicator_block.png");
-    private static final Identifier ND_INDICATOR = HitIndication.id("textures/hit/nd_person_damage.png");
-    private static final Identifier[] MARKER_CRIT = {
+    private static final ResourceLocation INDICATOR = HitIndication.id("textures/hit/indicator.png");
+    private static final ResourceLocation EDGE_INDICATOR = HitIndication.id("textures/hit/edge_indicator.png");
+    private static final ResourceLocation INDICATOR_BLOCK = HitIndication.id("textures/hit/indicator_block.png");
+    private static final ResourceLocation ND_INDICATOR = HitIndication.id("textures/hit/nd_person_damage.png");
+    private static final ResourceLocation[] MARKER_CRIT = {
             HitIndication.id("textures/hit/marker_crit1.png"),
             HitIndication.id("textures/hit/marker_crit2.png"),
             HitIndication.id("textures/hit/marker_crit3.png"),
             HitIndication.id("textures/hit/marker_crit4.png")
     };
-    private static final Identifier[] MARKER_KILL = {
+    private static final ResourceLocation[] MARKER_KILL = {
             HitIndication.id("textures/hit/marker_kill1.png"),
             HitIndication.id("textures/hit/marker_kill2.png"),
             HitIndication.id("textures/hit/marker_kill3.png"),
@@ -56,7 +56,7 @@ public class HitIndicationHud {
     private static int hitColor = 0xFF0000;
     private static int blockColor = 0x0000FF;
 
-    public static void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+    public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         if(player == null || mc.level == null)
@@ -64,6 +64,19 @@ public class HitIndicationHud {
         if(ClientLatestHits.latestHitIndicators.isEmpty() && ClientLatestHits.currentHitMarker == null)
             return;
 
+        // The textures are tinted and made translucent through the shader colour, as in the
+        // original; both have to be reset for whatever draws next.
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        try {
+            renderHits(graphics, player);
+        } finally {
+            graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.disableBlend();
+        }
+    }
+
+    private static void renderHits(GuiGraphics graphics, LocalPlayer player) {
         HitIndicatorClientConfigs.Values config = HitIndicatorClientConfigs.get();
         int screenMiddleX = graphics.guiWidth() / 2;
         int screenMiddleY = graphics.guiHeight() / 2;
@@ -141,16 +154,16 @@ public class HitIndicationHud {
         }
     }
 
-    private static void drawHitMarker(GuiGraphicsExtractor graphics, HitMarker hitMarker, int screenMiddleX, int screenMiddleY) {
+    private static void drawHitMarker(GuiGraphics graphics, HitMarker hitMarker, int screenMiddleX, int screenMiddleY) {
         float opacity = hitMarker.getType() == HitMarkerType.CRIT ? 0.3F : 0.6F;
 
-        graphics.blit(RenderPipelines.GUI_TEXTURED, markerTexture(hitMarker.getType(), hitMarker.getLifeTime()),
+        setColor(graphics, 0xFFFFFF, opacity);
+        graphics.blit(markerTexture(hitMarker.getType(), hitMarker.getLifeTime()),
                 screenMiddleX - MARKER_WIDTH / 2, screenMiddleY - MARKER_HEIGHT / 2,
-                0, 0, MARKER_WIDTH, MARKER_HEIGHT, MARKER_WIDTH, MARKER_HEIGHT,
-                ARGB.white(opacity));
+                0, 0, MARKER_WIDTH, MARKER_HEIGHT, MARKER_WIDTH, MARKER_HEIGHT);
     }
 
-    private static void drawIndicator(GuiGraphicsExtractor graphics, HitIndicator hit, IndicatorStyle style, float angle, float scale, int screenMiddleX, int screenMiddleY) {
+    private static void drawIndicator(GuiGraphics graphics, HitIndicator hit, IndicatorStyle style, float angle, float scale, int screenMiddleX, int screenMiddleY) {
         boolean nonDirectional = hit.getType() == HitIndicatorType.ND_HIT;
         int width = (int)Math.floor((nonDirectional ? ND_INDICATOR_WIDTH : INDICATOR_WIDTH) * scale);
         int height = (int)Math.floor((nonDirectional ? ND_INDICATOR_WIDTH : INDICATOR_HEIGHT) * scale);
@@ -161,7 +174,7 @@ public class HitIndicationHud {
                 width, height);
     }
 
-    private static void drawIndicatorEdge(GuiGraphicsExtractor graphics, HitIndicator hit, IndicatorStyle style, float angle, float scale, int screenMiddleX, int screenMiddleY) {
+    private static void drawIndicatorEdge(GuiGraphics graphics, HitIndicator hit, IndicatorStyle style, float angle, float scale, int screenMiddleX, int screenMiddleY) {
         int width = (int)Math.floor(EDGE_INDICATOR_WIDTH * scale);
         int height = (int)Math.floor(EDGE_INDICATOR_HEIGHT * scale);
         if(width <= 0 || height <= 0)
@@ -189,7 +202,7 @@ public class HitIndicationHud {
         return scale;
     }
 
-    private static void renderIndicator(GuiGraphicsExtractor graphics, HitIndicator hit, IndicatorStyle style, float centerX, float centerY, float rotAngle, int posX, int posY, int scaledTextureWidth, int scaledTextureHeight) {
+    private static void renderIndicator(GuiGraphics graphics, HitIndicator hit, IndicatorStyle style, float centerX, float centerY, float rotAngle, int posX, int posY, int scaledTextureWidth, int scaledTextureHeight) {
         if(scaledTextureWidth <= 0 || scaledTextureHeight <= 0)
             return;
 
@@ -199,35 +212,36 @@ public class HitIndicationHud {
                 : configuredOpacity * hit.getLifeTime() / 25.0F;
         opacity = Mth.clamp(opacity / 100.0F, 0.0F, 1.0F);
 
-        Matrix3x2fStack pose = graphics.pose();
-        pose.pushMatrix();
+        PoseStack pose = graphics.pose();
+        pose.pushPose();
         if (hit.getType() != HitIndicatorType.ND_HIT) {
-            pose.translate(centerX, centerY);
-            pose.rotate(rotAngle * Mth.DEG_TO_RAD);
-            pose.translate(-centerX, -centerY);
+            pose.translate(centerX, centerY, 0.0F);
+            pose.mulPose(Axis.ZP.rotationDegrees(rotAngle));
+            pose.translate(-centerX, -centerY, 0.0F);
         }
 
-        graphics.blit(RenderPipelines.GUI_TEXTURED, indicatorTexture(hit, style), posX, posY,
-                0, 0, scaledTextureWidth, scaledTextureHeight, scaledTextureWidth, scaledTextureHeight,
-                indicatorColor(hit, opacity));
+        int rgb = hit.getType() == HitIndicatorType.BLOCK ? blockColor : hitColor;
+        setColor(graphics, rgb, opacity);
+        graphics.blit(indicatorTexture(hit, style), posX, posY,
+                0, 0, scaledTextureWidth, scaledTextureHeight, scaledTextureWidth, scaledTextureHeight);
 
-        pose.popMatrix();
+        pose.popPose();
     }
 
-    private static Identifier indicatorTexture(HitIndicator hit, IndicatorStyle style) {
+    private static ResourceLocation indicatorTexture(HitIndicator hit, IndicatorStyle style) {
         if (style.edgeOfScreen) return EDGE_INDICATOR;
         else if (hit.getType() == HitIndicatorType.ND_HIT) return ND_INDICATOR;
         else if (hit.getType() == HitIndicatorType.HIT) return INDICATOR;
         else return INDICATOR_BLOCK;
     }
 
-    private static int indicatorColor(HitIndicator hit, float opacity) {
-        int rgb = hit.getType() == HitIndicatorType.BLOCK ? blockColor : hitColor;
-        return ARGB.color(opacity, rgb);
+    /** Tints what is drawn next with {@code rgb} at {@code alpha} (0 to 1). */
+    private static void setColor(GuiGraphics graphics, int rgb, float alpha) {
+        graphics.setColor(((rgb >> 16) & 0xFF) / 255.0F, ((rgb >> 8) & 0xFF) / 255.0F, (rgb & 0xFF) / 255.0F, alpha);
     }
 
-    private static Identifier markerTexture(HitMarkerType type, int lifetime) {
-        Identifier[] frames = type == HitMarkerType.KILL ? MARKER_KILL : MARKER_CRIT;
+    private static ResourceLocation markerTexture(HitMarkerType type, int lifetime) {
+        ResourceLocation[] frames = type == HitMarkerType.KILL ? MARKER_KILL : MARKER_CRIT;
         return lifetime > 6 ? frames[9 - lifetime] : frames[3];
     }
 }

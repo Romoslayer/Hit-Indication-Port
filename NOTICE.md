@@ -27,7 +27,7 @@ under the same license.
 
 ## This port
 
-Port of version 2.0 to Minecraft 26.2 and 26.3, for Fabric, NeoForge and Forge, by Romoslayer.
+Port of version 2.0 to Minecraft 1.21.1, 26.2 and 26.3, for Fabric, NeoForge and Forge, by Romoslayer.
 
 **License:** this port, as an adaptation of a CC BY-SA 4.0 work, is itself licensed under
 **CC BY-SA 4.0**. The full license text is in [`LICENSE`](LICENSE) and is included in every jar.
@@ -88,5 +88,10 @@ Gameplay behaviour and every config option are kept from version 2.0. Changed:
 - **Translations.** The key-binding category key was renamed to the 26.x format
   (`key.category.hitindication.hitindication`); English config screen titles and tooltips were
   added, taken from the original config comments.
+- **Minecraft 1.21.1 builds.** The same code, adapted to Minecraft 1.21.1 (Fabric with Mojang
+  mappings, NeoForge 21.1, Forge 52): rendering goes back to `GuiGraphics` with a `PoseStack` and
+  shader-colour tint; the Fabric mixins target `LivingEntity#hurt` and `ThrownPotion#onHit`; the
+  "shield about to break" check uses the game's own shield-disabling test (`canDisableShield`,
+  and on Forge the attacker's weapon); key mappings keep the same category translation key.
 - **Mod name.** Shown as "Hit Indication (Port)". The mod descriptions and project pages state that
   it is an unofficial port, not affiliated with or endorsed by the original authors.

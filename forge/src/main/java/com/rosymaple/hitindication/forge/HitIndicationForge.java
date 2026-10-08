@@ -8,8 +8,10 @@ import com.rosymaple.hitindication.networking.SetHitMarkerS2CPacket;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.projectile.ThrownPotion;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
 import net.minecraftforge.event.entity.living.LivingDamageEvent;
@@ -18,7 +20,8 @@ import net.minecraftforge.event.entity.living.MobEffectEvent;
 import net.minecraftforge.event.entity.living.ShieldBlockEvent;
 import net.minecraftforge.event.entity.player.CriticalHitEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
-import net.minecraftforge.eventbus.api.listener.Priority;
+import net.minecraftforge.eventbus.api.Event;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
@@ -44,18 +47,30 @@ public final class HitIndicationForge {
             .build();
 
     public HitIndicationForge(FMLJavaModLoadingContext context) {
-        HitIndication.setPlatform(HitIndicationForge::sendToPlayer);
+        HitIndication.setPlatform(new HitIndication.Platform() {
+            @Override
+            public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
+                HitIndicationForge.sendToPlayer(player, payload);
+            }
+
+            // Forge's Player#blockUsingShield asks the attacker's weapon, so modded weapons can
+            // disable shields too.
+            @Override
+            public boolean disablesShield(LivingEntity attacker, LivingEntity blocker) {
+                return attacker.getWeaponItem().canDisableShield(blocker.getUseItem(), blocker, attacker);
+            }
+        });
 
         // Lowest priority, so these see the outcome after every other mod has had its say. A
         // cancelled event stops before reaching them.
-        ShieldBlockEvent.BUS.addListener(Priority.LOWEST, HitIndicationForge::onShieldBlock);
-        LivingDamageEvent.BUS.addListener(Priority.LOWEST, HitIndicationForge::onDamage);
-        LivingDeathEvent.BUS.addListener(Priority.LOWEST, HitIndicationForge::onDeath);
-        CriticalHitEvent.BUS.addListener(Priority.LOWEST, HitIndicationForge::onCriticalHit);
-        ProjectileImpactEvent.BUS.addListener(Priority.LOWEST, HitIndicationForge::onProjectileImpact);
-        MobEffectEvent.Added.BUS.addListener(Priority.LOWEST, HitIndicationForge::onEffectAdded);
-        TickEvent.ServerTickEvent.Post.BUS.addListener(event -> HitEvents.onServerTickEnd());
-        ServerStoppedEvent.BUS.addListener(event -> HitEvents.onServerStopped());
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationForge::onShieldBlock);
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationForge::onDamage);
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationForge::onDeath);
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationForge::onCriticalHit);
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationForge::onProjectileImpact);
+        MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, HitIndicationForge::onEffectAdded);
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent.Post event) -> HitEvents.onServerTickEnd());
+        MinecraftForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> HitEvents.onServerStopped());
 
         if (FMLEnvironment.dist == Dist.CLIENT)
             HitIndicationForgeClient.init(context);
@@ -68,15 +83,15 @@ public final class HitIndicationForge {
             CHANNEL.send(payload, connection);
     }
 
-    // Fired while LivingEntity#hurtServer works out how much a shield stops; the hit goes on after.
+    // Fired while LivingEntity#hurt works out how much a shield stops; the hit goes on after.
     private static void onShieldBlock(ShieldBlockEvent event) {
         if (event.getBlockedDamage() > 0.0F && !event.getEntity().level().isClientSide())
             HitEvents.onBlocked(event.getEntity(), event.getDamageSource());
     }
 
     // Fired once armor, enchantments and absorption have been applied, just before the health
-    // drops, also for fatal hits: the amount is what NeoForge's getHealthDamage reports. A hit a
-    // shield stopped completely never gets here, matching vanilla's own "did this hit land" test.
+    // drops, also for fatal hits: the amount is what the health loses. A hit a shield stopped
+    // completely never gets here, matching vanilla's own "did this hit land" test.
     private static void onDamage(LivingDamageEvent event) {
         if (!event.getEntity().level().isClientSide())
             HitEvents.onDamageTaken(event.getEntity(), event.getSource(), event.getAmount());
@@ -87,9 +102,11 @@ public final class HitIndicationForge {
             HitEvents.onKill(event.getEntity(), event.getSource());
     }
 
-    // Fired when the attack is worked out, as in the original and on NeoForge.
+    // Fired when the attack is worked out, as in the original and on NeoForge. Same test as
+    // ForgeHooks#getCriticalHit.
     private static void onCriticalHit(CriticalHitEvent event) {
-        boolean critical = event.getResult().isAllowed() || (event.isVanillaCritical() && event.getResult().isDefault());
+        boolean critical = event.getResult() == Event.Result.ALLOW
+                || (event.isVanillaCritical() && event.getResult() == Event.Result.DEFAULT);
         if (critical && event.getEntity() instanceof ServerPlayer player)
             HitEvents.onCriticalHit(player);
     }
@@ -97,7 +114,7 @@ public final class HitIndicationForge {
     // The potion only shatters (onHit) when no mod changed the impact result.
     private static void onProjectileImpact(ProjectileImpactEvent event) {
         if (event.getImpactResult() == ProjectileImpactEvent.ImpactResult.DEFAULT
-                && event.getProjectile() instanceof AbstractThrownPotion potion)
+                && event.getProjectile() instanceof ThrownPotion potion)
             HitEvents.onPotionImpact(potion);
     }
 

@@ -5,7 +5,6 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.rosymaple.hitindication.event.HitEvents;
 import com.rosymaple.hitindication.fabric.HitIndicationFabric;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -36,13 +35,19 @@ public abstract class LivingEntityMixin {
             HitEvents.onEffectApplied(self, newEffect, source);
     }
 
-    /** One frame per hit, so a hit nested inside another (from some mod) keeps its own damage. */
-    @WrapMethod(method = "hurtServer")
-    private boolean hitindication$trackHit(ServerLevel level, DamageSource source, float damage, Operation<Boolean> original) {
+    /**
+     * One frame per hit, so a hit nested inside another (from some mod) keeps its own damage. On
+     * 1.21.1 hurt also runs on the client, where it does nothing; the frames are server-only.
+     */
+    @WrapMethod(method = "hurt")
+    private boolean hitindication$trackHit(DamageSource source, float damage, Operation<Boolean> original) {
         LivingEntity self = (LivingEntity)(Object)this;
+        if(self.level().isClientSide())
+            return original.call(source, damage);
+
         HitIndicationFabric.beginHurt(self);
         try {
-            return original.call(level, source, damage);
+            return original.call(source, damage);
         } finally {
             HitIndicationFabric.endHurt(self);
         }
@@ -52,8 +57,8 @@ public abstract class LivingEntityMixin {
      * Fabric's AFTER_DAMAGE skips hits that leave the entity dying, so those are reported from
      * here, at the same point and with the same values (NeoForge's damage event covers them too).
      */
-    @Inject(method = "hurtServer", at = @At("TAIL"))
-    private void hitindication$afterFatalDamage(ServerLevel level, DamageSource source, float damage, CallbackInfoReturnable<Boolean> cir,
+    @Inject(method = "hurt", at = @At("TAIL"))
+    private void hitindication$afterFatalDamage(DamageSource source, float damage, CallbackInfoReturnable<Boolean> cir,
                                                 @Local(ordinal = 0) boolean blocked) {
         if(isDeadOrDying())
             HitIndicationFabric.afterDamage((LivingEntity)(Object)this, source, damage, blocked);

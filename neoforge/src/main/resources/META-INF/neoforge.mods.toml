@@ -10,7 +10,7 @@ issueTrackerURL = "https://github.com/Romoslayer/Hit-Indication-Port/issues"
     displayURL = "https://github.com/Romoslayer/Hit-Indication-Port"
     iconFile = "assets/hitindication/icon.png"
     authors = "Hamester and Axovoxel"
-    credits = "Original mod by Hamester and Axovoxel. Thank you HaHaWTH, Emik, Enitoni, Lily for localizations. Minecraft 26.2/26.3 Fabric, NeoForge and Forge port by Romoslayer."
+    credits = "Original mod by Hamester and Axovoxel. Thank you HaHaWTH, Emik, Enitoni, Lily for localizations. Minecraft 1.21.1, 26.2 and 26.3 Fabric, NeoForge and Forge port by Romoslayer."
     description = '''
 Adds hit indicators that show where damage is taken from.
 
@@ -20,7 +20,7 @@ Unofficial port of Hamester's Hit Indication (https://github.com/TheHamester/Hit
 [[dependencies.hitindication]]
     modId = "neoforge"
     type = "required"
-    versionRange = "${minecraftRange}"
+    versionRange = "${neoForgeRange}"
     ordering = "NONE"
     side = "BOTH"
 
